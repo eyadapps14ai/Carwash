@@ -1,0 +1,677 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  CASHIER
+  TECHNICIAN
+}
+
+model Branch {
+  id              String           @id @default(cuid())
+  name            String           @unique
+  code            String           @unique
+  active          Boolean          @default(true)
+  users           Assignment[]
+  services        BranchService[]
+  sales           Sale[]
+  expenses        Expense[]
+  forecast        ForecastConfig?
+  investments     Investment[]
+  cashMovements   CashMovement[]
+  periodCloses    PeriodClose[]
+  jobCards        JobCard[]
+  stock           BranchStock[]
+  stockMovements  StockMovement[]
+  attendance      Attendance[]
+  customers       CustomerBranch[]
+  recommendations Recommendation[]
+  vouchers        Voucher[]
+  referrals       Referral[]
+}
+
+model User {
+  id                 String           @id @default(cuid())
+  email              String           @unique
+  name               String
+  passwordHash       String
+  role               Role
+  active             Boolean          @default(true)
+  title              String           @default("")
+  salary             Decimal          @default(0) @db.Decimal(14, 2)
+  schedule           String           @default("48 hours/week")
+  branches           Assignment[]
+  sessions           Session[]
+  sales              Sale[]           @relation("Cashier")
+  jobs               SaleWorker[]
+  audits             Audit[]
+  jobAssignments     JobAssignment[]
+  timeEntries        TechnicianTime[]
+  attendance         Attendance[]
+  productivityTarget Int              @default(0)
+}
+
+model Assignment {
+  userId   String
+  branchId String
+  user     User   @relation(fields: [userId], references: [id])
+  branch   Branch @relation(fields: [branchId], references: [id])
+
+  @@id([userId, branchId])
+}
+
+model Session {
+  tokenHash String   @id
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([expiresAt])
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  name     String    @unique
+  active   Boolean   @default(true)
+  services Service[]
+}
+
+model Service {
+  id         String          @id @default(cuid())
+  name       String
+  categoryId String
+  category   Category        @relation(fields: [categoryId], references: [id])
+  active     Boolean         @default(true)
+  duration   Int             @default(30)
+  labor      Int             @default(1)
+  materials  String          @default("")
+  branches   BranchService[]
+}
+
+model BranchService {
+  id             String  @id @default(cuid())
+  branchId       String
+  serviceId      String
+  branch         Branch  @relation(fields: [branchId], references: [id])
+  service        Service @relation(fields: [serviceId], references: [id])
+  price          Decimal @db.Decimal(14, 2)
+  costs          Json
+  active         Boolean @default(true)
+  stockMaterials Json    @default("[]")
+
+  @@unique([branchId, serviceId])
+}
+
+model Sale {
+  id                String             @id @default(cuid())
+  number            String             @unique
+  requestKey        String             @unique
+  branchId          String
+  branch            Branch             @relation(fields: [branchId], references: [id])
+  cashierId         String
+  cashier           User               @relation("Cashier", fields: [cashierId], references: [id])
+  createdAt         DateTime           @default(now())
+  plate             String
+  customerName      String             @default("")
+  customerId        String?
+  customer          Customer?          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId         String?
+  vehicle           Vehicle?           @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  subtotal          Decimal            @db.Decimal(14, 2)
+  discount          Decimal            @db.Decimal(14, 2)
+  net               Decimal            @db.Decimal(14, 2)
+  vat               Decimal            @db.Decimal(14, 2)
+  total             Decimal            @db.Decimal(14, 2)
+  cost              Decimal            @db.Decimal(14, 2)
+  vatRate           Decimal            @db.Decimal(6, 3)
+  status            String             @default("COMPLETED")
+  cancelledAt       DateTime?
+  sample            Boolean            @default(false)
+  lines             SaleLine[]
+  payments          Payment[]
+  workers           SaleWorker[]
+  jobCard           JobCard?
+  stockMovements    StockMovement[]
+  issuedVouchers    Voucher[]          @relation("VoucherSource")
+  voucherRedemption VoucherRedemption?
+
+  @@index([branchId, createdAt])
+  @@index([customerId, createdAt])
+}
+
+model SaleLine {
+  id           String  @id @default(cuid())
+  saleId       String
+  sale         Sale    @relation(fields: [saleId], references: [id])
+  serviceId    String
+  name         String
+  category     String
+  price        Decimal @db.Decimal(14, 2)
+  cost         Decimal @db.Decimal(14, 2)
+  costSnapshot Json
+
+  @@index([saleId])
+}
+
+model SaleWorker {
+  saleId String
+  userId String
+  sale   Sale   @relation(fields: [saleId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@id([saleId, userId])
+  @@index([userId])
+}
+
+model Payment {
+  id         String   @id @default(cuid())
+  saleId     String
+  sale       Sale     @relation(fields: [saleId], references: [id])
+  amount     Decimal  @db.Decimal(14, 2)
+  method     String
+  createdAt  DateTime @default(now())
+  requestKey String   @unique
+
+  @@index([saleId])
+  @@index([createdAt])
+}
+
+model ExpenseCategory {
+  id   String @id @default(cuid())
+  name String @unique
+}
+
+model Expense {
+  id            String            @id @default(cuid())
+  branchId      String
+  branch        Branch            @relation(fields: [branchId], references: [id])
+  category      String
+  description   String
+  amount        Decimal           @db.Decimal(14, 2)
+  date          DateTime
+  frequency     String            @default("ONCE")
+  kind          String            @default("FIXED")
+  active        Boolean           @default(true)
+  sample        Boolean           @default(false)
+  revisions     ExpenseRevision[]
+  cashMovements CashMovement[]
+}
+
+model Settings {
+  id                String  @id @default("company")
+  vatRate           Decimal @default(5) @db.Decimal(6, 3)
+  companyName       String  @default("Protune Auto Services")
+  trn               String  @default("")
+  sampleMode        Boolean @default(true)
+  attendanceEnabled Boolean @default(true)
+  crmEnabled        Boolean @default(false)
+}
+
+model Audit {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  branchId  String?
+  action    String
+  entityId  String
+  detail    Json
+  createdAt DateTime @default(now())
+
+  @@index([branchId, createdAt])
+}
+
+model LoginAttempt {
+  key     String   @id
+  count   Int      @default(0)
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+model ForecastConfig {
+  branchId            String   @id
+  branch              Branch   @relation(fields: [branchId], references: [id])
+  basis               String   @default("AUTO")
+  conservativePct     Decimal  @default(85) @db.Decimal(7, 2)
+  expectedPct         Decimal  @default(100) @db.Decimal(7, 2)
+  optimisticPct       Decimal  @default(115) @db.Decimal(7, 2)
+  futureCostPct       Decimal  @default(100) @db.Decimal(7, 2)
+  extraExpense        Decimal  @default(0) @db.Decimal(14, 2)
+  revenueTarget       Decimal  @default(0) @db.Decimal(14, 2)
+  profitTarget        Decimal  @default(0) @db.Decimal(14, 2)
+  recoveryMonthlyCash Decimal  @default(0) @db.Decimal(14, 2)
+  cashReviewedThrough String   @default("")
+  updatedAt           DateTime @default(now()) @updatedAt
+}
+
+model ExpenseRevision {
+  id             Int      @id @default(autoincrement())
+  expenseId      String
+  expense        Expense  @relation(fields: [expenseId], references: [id])
+  effectiveMonth String
+  category       String
+  description    String
+  amount         Decimal  @db.Decimal(14, 2)
+  date           DateTime
+  frequency      String
+  kind           String
+  active         Boolean
+  createdAt      DateTime @default(now())
+
+  @@index([expenseId, effectiveMonth])
+}
+
+model Investment {
+  id          String         @id @default(cuid())
+  requestKey  String         @unique
+  branchId    String
+  branch      Branch         @relation(fields: [branchId], references: [id])
+  category    String
+  description String
+  amount      Decimal        @db.Decimal(14, 2)
+  date        DateTime
+  kind        String         @default("CAPITAL")
+  sample      Boolean        @default(false)
+  movements   CashMovement[]
+  createdAt   DateTime       @default(now())
+}
+
+model CashMovement {
+  id           String      @id @default(cuid())
+  requestKey   String      @unique
+  branchId     String
+  branch       Branch      @relation(fields: [branchId], references: [id])
+  investmentId String?
+  investment   Investment? @relation(fields: [investmentId], references: [id], onDelete: Restrict)
+  expenseId    String?
+  expense      Expense?    @relation(fields: [expenseId], references: [id], onDelete: Restrict)
+  amount       Decimal     @db.Decimal(14, 2)
+  date         DateTime
+  direction    String
+  category     String
+  description  String
+  voidedAt     DateTime?
+  sample       Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+
+  @@index([branchId, date])
+}
+
+model PeriodClose {
+  id        String   @id @default(cuid())
+  branchId  String
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  month     String
+  snapshot  Json
+  closedBy  String
+  createdAt DateTime @default(now())
+
+  @@unique([branchId, month])
+}
+
+model InventoryItem {
+  id        String          @id @default(cuid())
+  name      String
+  sku       String          @unique
+  category  String
+  unit      String          @default("unit")
+  supplier  String          @default("")
+  active    Boolean         @default(true)
+  stock     BranchStock[]
+  movements StockMovement[]
+}
+
+model BranchStock {
+  branchId     String
+  itemId       String
+  branch       Branch        @relation(fields: [branchId], references: [id])
+  item         InventoryItem @relation(fields: [itemId], references: [id])
+  quantity     Decimal       @default(0) @db.Decimal(16, 4)
+  unitCost     Decimal       @default(0) @db.Decimal(16, 6)
+  reorderLevel Decimal       @default(0) @db.Decimal(16, 4)
+  location     String        @default("")
+
+  @@id([branchId, itemId])
+}
+
+model StockMovement {
+  id         String        @id @default(cuid())
+  requestKey String        @unique
+  branchId   String
+  branch     Branch        @relation(fields: [branchId], references: [id])
+  itemId     String
+  item       InventoryItem @relation(fields: [itemId], references: [id])
+  quantity   Decimal       @db.Decimal(16, 4)
+  unitCost   Decimal       @db.Decimal(16, 6)
+  value      Decimal       @db.Decimal(14, 2)
+  kind       String
+  reference  String        @default("")
+  note       String
+  actorId    String
+  saleId     String?
+  sale       Sale?         @relation(fields: [saleId], references: [id])
+  jobId      String?
+  job        JobCard?      @relation(fields: [jobId], references: [id])
+  createdAt  DateTime      @default(now())
+
+  @@index([branchId, createdAt])
+}
+
+model JobCard {
+  id                  String              @id @default(cuid())
+  number              String              @unique
+  requestKey          String              @unique
+  branchId            String
+  branch              Branch              @relation(fields: [branchId], references: [id])
+  customerId          String?
+  customer            Customer?           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId           String?
+  registeredVehicle   Vehicle?            @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  customerName        String
+  customerPhone       String              @default("")
+  plate               String
+  vehicle             String              @default("")
+  requestedWork       String
+  estimatedCompletion DateTime?
+  status              String              @default("NEW")
+  createdAt           DateTime            @default(now())
+  completedAt         DateTime?
+  deliveredAt         DateTime?
+  saleId              String?             @unique
+  sale                Sale?               @relation(fields: [saleId], references: [id])
+  sample              Boolean             @default(false)
+  assignments         JobAssignment[]
+  quotes              QuotationRevision[]
+  times               TechnicianTime[]
+  movements           StockMovement[]
+  events              JobEvent[]
+  completionLines     Json?
+
+  @@index([branchId, createdAt])
+}
+
+model JobAssignment {
+  jobId  String
+  userId String
+  job    JobCard @relation(fields: [jobId], references: [id])
+  user   User    @relation(fields: [userId], references: [id])
+
+  @@id([jobId, userId])
+}
+
+model QuotationRevision {
+  id        String             @id @default(cuid())
+  jobId     String
+  job       JobCard            @relation(fields: [jobId], references: [id])
+  version   Int
+  lines     Json
+  subtotal  Decimal            @db.Decimal(14, 2)
+  discount  Decimal            @db.Decimal(14, 2)
+  vat       Decimal            @db.Decimal(14, 2)
+  total     Decimal            @db.Decimal(14, 2)
+  vatRate   Decimal            @db.Decimal(6, 3)
+  createdBy String
+  createdAt DateTime           @default(now())
+  approval  QuotationApproval?
+
+  @@unique([jobId, version])
+}
+
+model QuotationApproval {
+  id           String            @id @default(cuid())
+  quotationId  String            @unique
+  quotation    QuotationRevision @relation(fields: [quotationId], references: [id])
+  customerName String
+  method       String
+  evidence     String
+  recordedBy   String
+  createdAt    DateTime          @default(now())
+}
+
+model JobEvent {
+  id        String   @id @default(cuid())
+  jobId     String
+  job       JobCard  @relation(fields: [jobId], references: [id])
+  status    String
+  note      String
+  actorId   String
+  createdAt DateTime @default(now())
+}
+
+model TechnicianTime {
+  id        String    @id @default(cuid())
+  jobId     String
+  job       JobCard   @relation(fields: [jobId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  note      String    @default("")
+
+  @@index([userId, startedAt])
+}
+
+model Attendance {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  branchId  String
+  branch    Branch    @relation(fields: [branchId], references: [id])
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  @@index([branchId, startedAt])
+}
+
+model Customer {
+  id                String           @id @default(cuid())
+  requestKey        String           @unique
+  name              String
+  mobile            String           @default("")
+  mobileKey         String?
+  email             String           @default("")
+  preferredChannel  String           @default("NONE")
+  notes             String           @default("")
+  active            Boolean          @default(true)
+  sample            Boolean          @default(false)
+  consentEmail      Boolean          @default(false)
+  consentWhatsApp   Boolean          @default(false)
+  marketingOptOut   Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  branches          CustomerBranch[]
+  vehicles          Vehicle[]
+  sales             Sale[]
+  jobs              JobCard[]
+  consentEvents     ConsentEvent[]
+  recommendations   Recommendation[]
+  vouchers          Voucher[]
+  referralsMade     Referral[]       @relation("Referrer")
+  referralsReceived Referral[]       @relation("Referred")
+}
+
+model CustomerBranch {
+  customerId String
+  branchId   String
+  mobileKey  String?
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@id([customerId, branchId])
+  @@unique([branchId, mobileKey])
+}
+
+model Vehicle {
+  id              String           @id @default(cuid())
+  customerId      String
+  customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plate           String
+  plateKey        String
+  make            String           @default("")
+  model           String           @default("")
+  year            Int?
+  category        String           @default("Other")
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  sales           Sale[]
+  jobs            JobCard[]
+  recommendations Recommendation[]
+
+  @@unique([customerId, plateKey])
+}
+
+model ConsentEvent {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  email      Boolean
+  whatsApp   Boolean
+  optOut     Boolean
+  evidence   String
+  recordedBy String
+  createdAt  DateTime @default(now())
+}
+
+model Recommendation {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  vehicleId  String?
+  vehicle    Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  branchId   String
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  title      String
+  notes      String   @default("")
+  dueDate    DateTime
+  status     String   @default("OPEN")
+  createdBy  String
+  createdAt  DateTime @default(now())
+
+  @@index([branchId, dueDate])
+}
+
+model Campaign {
+  id               String     @id @default(cuid())
+  name             String
+  code             String     @unique
+  kind             String
+  active           Boolean    @default(false)
+  branchIds        Json
+  serviceIds       Json
+  startDate        String
+  endDate          String
+  discountKind     String
+  discountValue    Decimal    @db.Decimal(14, 2)
+  minimumSpend     Decimal    @default(0) @db.Decimal(14, 2)
+  expiryDays       Int        @default(30)
+  threshold        Decimal    @default(5) @db.Decimal(14, 2)
+  inactivityDays   Int        @default(30)
+  maxPerCustomer   Int        @default(1)
+  maxRedemptions   Int        @default(1000)
+  channel          String     @default("PREFERRED")
+  message          String     @default("Hello {name}, your Protune voucher is {code}. Valid until {expiry}. {offer} {unsubscribe}")
+  whatsappTemplate String     @default("")
+  templateLanguage String     @default("en")
+  templateApproved Boolean    @default(false)
+  marketingCost    Decimal    @default(0) @db.Decimal(14, 2)
+  createdBy        String
+  createdAt        DateTime   @default(now())
+  vouchers         Voucher[]
+  referrals        Referral[]
+}
+
+model Voucher {
+  id           String             @id @default(cuid())
+  code         String             @unique
+  issueKey     String             @unique
+  campaignId   String
+  campaign     Campaign           @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  customerId   String
+  customer     Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branchId     String
+  branch       Branch             @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  sourceSaleId String?
+  sourceSale   Sale?              @relation("VoucherSource", fields: [sourceSaleId], references: [id], onDelete: Restrict)
+  rules        Json
+  issuedAt     DateTime           @default(now())
+  expiresAt    DateTime
+  status       String             @default("ISSUED")
+  sample       Boolean            @default(false)
+  redemption   VoucherRedemption?
+  delivery     MarketingDelivery?
+
+  @@index([branchId, issuedAt])
+}
+
+model VoucherRedemption {
+  id        String    @id @default(cuid())
+  voucherId String    @unique
+  voucher   Voucher   @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  saleId    String    @unique
+  sale      Sale      @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  discount  Decimal   @db.Decimal(14, 2)
+  createdAt DateTime  @default(now())
+  voidedAt  DateTime?
+}
+
+model Referral {
+  id              String   @id @default(cuid())
+  campaignId      String
+  campaign        Campaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  referrerId      String
+  referrer        Customer @relation("Referrer", fields: [referrerId], references: [id], onDelete: Restrict)
+  referredId      String
+  referred        Customer @relation("Referred", fields: [referredId], references: [id], onDelete: Restrict)
+  branchId        String
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  createdAt       DateTime @default(now())
+  createdBy       String
+  qualifiedSaleId String?
+
+  @@unique([campaignId, referredId])
+}
+
+model MarketingConfig {
+  id              String   @id @default("company")
+  deliveryEnabled Boolean  @default(false)
+  emailEnabled    Boolean  @default(false)
+  emailFrom       String   @default("")
+  whatsappEnabled Boolean  @default(false)
+  updatedAt       DateTime @updatedAt
+}
+
+model MarketingDelivery {
+  id               String           @id @default(cuid())
+  voucherId        String           @unique
+  voucher          Voucher          @relation(fields: [voucherId], references: [id], onDelete: Restrict)
+  channel          String
+  destination      String
+  body             String
+  unsubscribeToken String           @unique
+  status           String           @default("QUEUED")
+  reason           String           @default("")
+  providerId       String?          @unique
+  attempts         Int              @default(0)
+  claimedAt        DateTime?
+  acceptedAt       DateTime?
+  deliveredAt      DateTime?
+  createdAt        DateTime         @default(now())
+  events           MarketingEvent[]
+
+  @@index([status, createdAt])
+}
+
+model MarketingEvent {
+  id         String            @id
+  deliveryId String
+  delivery   MarketingDelivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  status     String
+  createdAt  DateTime          @default(now())
+}

@@ -1,0 +1,13 @@
+CREATE INDEX "Sale_branchId_createdAt_idx" ON "Sale"("branchId","createdAt");
+CREATE INDEX "Sale_customerId_createdAt_idx" ON "Sale"("customerId","createdAt");
+CREATE INDEX "Payment_saleId_idx" ON "Payment"("saleId");
+CREATE INDEX "Payment_createdAt_idx" ON "Payment"("createdAt");
+CREATE INDEX "SaleLine_saleId_idx" ON "SaleLine"("saleId");
+CREATE INDEX "SaleWorker_userId_idx" ON "SaleWorker"("userId");
+CREATE INDEX "JobCard_branchId_createdAt_idx" ON "JobCard"("branchId","createdAt");
+CREATE INDEX "Audit_branchId_createdAt_idx" ON "Audit"("branchId","createdAt");
+CREATE INDEX "MarketingDelivery_status_createdAt_idx" ON "MarketingDelivery"("status","createdAt");
+CREATE INDEX "Session_expiresAt_idx" ON "Session"("expiresAt");
+CREATE INDEX "LoginAttempt_resetAt_idx" ON "LoginAttempt"("resetAt");
+ALTER TABLE "Sale" ADD CONSTRAINT "Sale_valid_totals" CHECK ("subtotal">=0 AND "discount">=0 AND "discount"<="subtotal" AND "net"="subtotal"-"discount" AND "vat">=0 AND "total"="net"+"vat" AND "cost">=0 AND "vatRate">=0 AND "vatRate"<=100);
+ALTER TABLE "Payment" ADD CONSTRAINT "Payment_positive" CHECK ("amount">0);

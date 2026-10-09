@@ -1,0 +1,7 @@
+{$PROTUNE_HOST} {
+  request_body {
+    max_size 256KB
+  }
+  reverse_proxy web:3000
+  # Access logs deliberately omit request URLs to avoid storing private voucher/opt-out tokens.
+}

@@ -1,0 +1,38 @@
+services:
+  web:
+    build:
+      context: ..
+      target: web
+    env_file: ./production.env
+    environment:
+      NODE_ENV: production
+      TRUST_PROXY: 'true'
+    expose: ['3000']
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+  worker:
+    build:
+      context: ..
+      target: operations
+    env_file: ./production.env
+    environment:
+      NODE_ENV: production
+    command: ['node', '--import', 'tsx', 'scripts/marketing-worker.ts']
+    restart: unless-stopped
+    stop_grace_period: 8m
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+  proxy:
+    image: caddy:2
+    ports: ['80:80', '443:443']
+    environment:
+      PROTUNE_HOST: ${PROTUNE_HOST:?Set your approved DNS hostname}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+volumes:
+  caddy_data:
+  caddy_config:

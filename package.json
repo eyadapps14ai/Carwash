@@ -1,0 +1,60 @@
+{
+  "name": "protune-management",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build && node scripts/prepare-standalone.mjs",
+    "start": "node scripts/start.mjs",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:local": "prisma dev",
+    "seed": "node --env-file=.env --import tsx scripts/seed.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "bootstrap": "node --env-file=.env --import tsx scripts/bootstrap.ts",
+    "test:integration": "node --env-file=.env --import tsx scripts/integration.ts",
+    "test:phase3": "node --env-file=.env --import tsx scripts/phase3-integration.ts",
+    "test:phase2": "node --env-file=.env --import tsx scripts/phase2-integration.ts",
+    "format": "prettier --write app lib scripts tests docs README.md next.config.ts tsconfig.json package.json",
+    "test:phase4": "node --env-file=.env --import tsx scripts/phase4-integration.ts",
+    "test:phase5": "node --env-file=.env --import tsx scripts/phase5-integration.ts",
+    "marketing:worker": "node --env-file=.env --import tsx scripts/marketing-worker.ts",
+    "marketing:once": "node --env-file=.env --import tsx scripts/marketing-worker.ts --once",
+    "test:phase6": "node --env-file=.env --import tsx scripts/phase6-security.ts",
+    "test:load": "node --env-file=.env --import tsx scripts/phase6-load.ts",
+    "test:recovery": "node --env-file=.env --import tsx scripts/restore-drill.ts",
+    "backup": "node --env-file=.env --import tsx scripts/backup.ts",
+    "backup:scheduled": "node --env-file=.env --import tsx scripts/scheduled-backup.ts",
+    "test:browser": "node --env-file=.env scripts/phase6-browser.mjs",
+    "deploy:preflight": "node --env-file=.env --import tsx scripts/preflight.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.3",
+    "decimal.js": "^10.6.0",
+    "exceljs": "^4.4.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.5.12",
+    "nodemailer": "^10.0.16",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@types/node": "^22.0.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "npm": "^12.2.0",
+    "playwright": "^1.63.0",
+    "prettier": "^3.9.9",
+    "prisma": "6.19.3",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  },
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.12"
+  }
+}
